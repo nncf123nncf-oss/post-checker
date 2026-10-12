@@ -13,8 +13,8 @@ const CARD2 = '【秋の感謝祭のお知らせ】みなと堂では、日ご�
   await b.open(PAGE, 900, 1300, 2, false);
   await b.ev(`document.getElementById('sampleBtn').click()`); await b.sleep(400);
   // 右の結果の枠は、実際のページでも内側でスクロールする（max-height）。Card1では、5件目の下で終わる高さにして、項目の途中で切れないようにする
-  const N1 = +(process.env.CARD1_ITEMS || 5);
-  await b.ev(`(()=>{const o=document.querySelector('.a-out'),li=document.querySelectorAll('#flist li')[${N1 - 1}];const h=li.getBoundingClientRect().bottom-o.getBoundingClientRect().top+15;o.style.maxHeight=h+'px';return h})()`); await b.sleep(200);
+  const N1 = +(process.env.CARD1_ITEMS || 4);
+  await b.ev(`(()=>{const o=document.querySelector('.a-out'),li=document.querySelectorAll('#flist li')[${N1 - 1}];const h=li.getBoundingClientRect().bottom-o.getBoundingClientRect().top+8;o.style.maxHeight=h+'px';return h})()`); await b.sleep(200);
   const lay = await rect('.layout'), out = await rect('.a-out'), ann = await rect('.a-annot'), inp = await rect('.a-in');
   console.log('card1', JSON.stringify({ lay, out, ann, inp }));
   await b.shot(path.join(OUT, '01-desktop-sample-' + DATE + '.png'), { x: 0, y: Math.max(0, lay.top - 12), width: 900, height: Math.max(out.bottom, ann.bottom) - lay.top + 24 });
@@ -24,7 +24,8 @@ const CARD2 = '【秋の感謝祭のお知らせ】みなと堂では、日ご�
   await setText(CARD2); await b.sleep(400);
   const hd = await rect('.a-out h2'), lst = await rect('#flist'), tx = await rect('#txt'), cn = await rect('#counts'), a2 = await rect('.a-annot');
   console.log('card2', JSON.stringify({ hd, lst, tx, cn, a2, n: await b.ev(`document.querySelectorAll('#flist li').length`) }));
-  await b.shot(path.join(OUT, '02-mobile375-confirm-' + DATE + '.png'), { x: 0, y: hd.top - 8, width: 375, height: lst.bottom - hd.top + 16 });
+  const N2 = +(process.env.CARD2_ITEMS || 2), it2 = await b.ev(`(()=>{const r=document.querySelectorAll('#flist li')[${N2 - 1}].getBoundingClientRect();return r.bottom+scrollY})()`);
+  await b.shot(path.join(OUT, '02-mobile375-confirm-' + DATE + '.png'), { x: 0, y: hd.top - 8, width: 375, height: it2 - hd.top + 16 });
   await b.shot(path.join(OUT, 'source-mobile375-full.png'), { x: 0, y: 0, width: 375, height: await b.ev('document.documentElement.scrollHeight') });
   b.close(); setTimeout(() => process.exit(0), 300);
 })().catch(e => { console.error(e); process.exit(2); });
