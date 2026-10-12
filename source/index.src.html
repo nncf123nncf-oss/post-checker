@@ -65,9 +65,9 @@
   .cat { font-weight: 600; }
   .where { color: var(--ink3); }
   .fm { margin: 0 0 6px; overflow-wrap: anywhere; }
-  .fs { margin: 0 0 6px; color: var(--ink2); overflow-wrap: anywhere; }
+  .fs { margin: 0; color: var(--ink2); overflow-wrap: anywhere; }
   .fs code { font-family: ui-monospace, "SFMono-Regular", Consolas, "Courier New", monospace; font-size: 16px; background: var(--bg); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; white-space: pre-wrap; overflow-wrap: anywhere; }
-  .jump { min-height: 44px; }
+  .jump { min-height: 44px; margin-left: auto; }
 
   .annot { margin: 0; padding: 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; font-size: 16px; line-height: 2; }
   .m { padding: 0 1px; border-radius: 3px; color: var(--ink); }
@@ -93,7 +93,8 @@
   @media (min-width: 880px) {
     main { padding: 24px 16px 40px; }
     h1 { font-size: 24px; }
-    .layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: "in out" "annot out"; gap: 0 20px; align-items: start; }
+    .layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: "in out" "annot out"; grid-template-rows: auto 1fr; gap: 0 20px; align-items: start; }
+    textarea { min-height: 260px; }
     .a-in { grid-area: in; } .a-annot { grid-area: annot; } .a-out { grid-area: out; position: sticky; top: 16px; max-height: calc(100vh - 32px); overflow: auto; }
   }
 </style>
@@ -104,7 +105,7 @@
   <p class="lead">投稿する文章を貼ると、URLの形・全角と半角の混在・日付や数字・ハッシュタグ・文字数を、決まったルールで見て、気になる場所に印をつけます。</p>
 
   <ul class="notes">
-    <li data-n="①">文章はこの端末から外に出ず、保存もしません（通信は閲覧数の計測のみ）。</li>
+    <li data-n="①">文章はこの端末から外に出ず、保存もしません（通信はアクセス解析＝ページの閲覧状況の計測のみ）。</li>
     <li data-n="②">見つけられるのは、決まったルールで分かる範囲だけです。誤字・名前の間違い・事実の誤りは見つけられません。「見つからなかった」は「問題がない」という意味ではありません。</li>
     <li data-n="③">印は「確認してみてください」の合図で、間違いと決めつけるものではありません。直すかどうかは、ご自身で決めてください。</li>
   </ul>
@@ -112,14 +113,15 @@
   <div class="layout">
     <section class="panel a-in" aria-label="投稿する文章">
       <label class="lb" for="txt">投稿する文章</label>
-      <textarea id="txt" maxlength="10000" spellcheck="false" autocomplete="off" autocapitalize="off" placeholder="ここに文章を貼り付けます（10000字まで）"></textarea>
-      <ul class="counts" id="counts" aria-live="polite">
+      <div class="btnrow" style="margin:0 0 10px"><button type="button" id="sampleBtn">サンプルで試す</button><button type="button" id="clearBtn">空にする</button></div>
+      <textarea id="txt" spellcheck="false" autocomplete="off" autocapitalize="off" placeholder="ここに文章を貼り付けます（先頭の10000字まで見ます）"></textarea>
+      <ul class="counts" id="counts">
         <li>文字数 <b id="cChars">0</b></li>
         <li id="cUnitsLi">Xの目安 <b id="cUnits">0</b> / 280 ユニット<span id="cOver"></span></li>
         <li>ハッシュタグ <b id="cTags">0</b>個</li>
         <li>URL <b id="cUrls">0</b>件</li>
       </ul>
-      <div class="btnrow"><button type="button" id="sampleBtn">サンプルで試す</button><button type="button" id="clearBtn">空にする</button></div>
+      <p class="hint" id="truncNote" hidden>10000字を超えているため、先頭の10000字だけ見ています。</p>
       <p class="hint">サンプルは、このページで用意した架空の投稿文です。実在の店や人のものではありません。ユニット数は、全角などを2・半角英数字を1として数えた目安で、Xの数え方と完全に同じとは限りません。</p>
     </section>
 
@@ -197,10 +199,13 @@ var PC = (function () {
   var JP = '぀-ヿ一-鿿';
 
   function check(input, opts) {
-    var text = String(input == null ? '' : input).replace(/\r\n?/g, '\n');
+    var text = String(input == null ? '' : input).replace(/\r\n?/g, '\n'), truncated = false;
+    if (text.length > 10000) { text = text.slice(0, 10000); if (/[\uD800-\uDBFF]$/.test(text)) text = text.slice(0, -1); truncated = true; }
     var now = (opts && opts.now) || new Date(), thisYear = now.getFullYear();
     var out = [], counts = {}, lastOf = {};
     function add(rule, level, cat, s, e, msg, cap) {
+      if (e > s && e <= text.length && /[\uD800-\uDBFF]/.test(text.charAt(e - 1))) e++;
+      if (s > 0 && /[\uDC00-\uDFFF]/.test(text.charAt(s))) s--;
       counts[rule] = (counts[rule] || 0) + 1;
       if (counts[rule] > (cap || CAP)) return;
       var f = { rule: rule, level: level, cat: cat, start: s, end: e, msg: msg };
@@ -219,7 +224,7 @@ var PC = (function () {
       var rest = core.replace(/^https?:\/\//i, ''), hostport = rest.split(/[\/?#]/)[0], host = hostport.replace(/^.*@/, '').replace(/:\d*$/, '').toLowerCase();
       var next = text.charAt(u.e), flagged = false;
       if (!rest || !hostport) { add('url-short', 'warn', 'URL', u.s, u.e, 'URLが途中で終わっているようです。「https://」のあとにアドレスが続いているか確認してみてください。'); flagged = true; }
-      else if (/[！-～]/.test(next)) { add('url-fw', 'warn', 'URL', u.s, Math.min(text.length, u.e + 1), 'URLの途中に全角の文字（「' + next + '」）が混ざっているようです。半角にそろうか確認してみてください。'); flagged = true; }
+      else if (/[Ａ-Ｚａ-ｚ０-９／．：]/.test(next)) { add('url-fw', 'warn', 'URL', u.s, Math.min(text.length, u.e + 1), 'URLの途中に全角の文字（「' + next + '」）が混ざっているようです。半角にそろうか確認してみてください。'); flagged = true; }
       else if (host === 'localhost' || /^127\./.test(host) || /^192\.168\./.test(host) || /^10\.\d+\.\d+\.\d+$/.test(host) || /\.local$/.test(host)) { add('url-local', 'warn', 'URL', u.s, u.e, 'このアドレスは、自分の端末の中や社内のものに見えます。ほかの人は開けないかもしれません。確認してみてください。'); flagged = true; }
       else {
         var ip = /^\d+\.\d+\.\d+\.\d+$/.test(host);
@@ -267,7 +272,7 @@ var PC = (function () {
       if (PAIRS[ch]) stack.push({ c: ch, i: i });
       else if (CLOSE[ch]) {
         if (stack.length && PAIRS[stack[stack.length - 1].c] === ch) stack.pop();
-        else if (ch === '）' && /[0-9０-９]/.test(mk.charAt(i - 1))) continue;
+        else if (ch === '）' && (/[0-9０-９]/.test(mk.charAt(i - 1)) || /(^|\n)[ \u3000]*[A-Za-zＡ-Ｚａ-ｚぁ-んァ-ヶ0-9０-９]{1,2}$/.test(mk.slice(0, i)))) continue;
         else add('br-close', 'warn', '括弧', i, i + 1, '閉じる括弧「' + ch + '」に対応する開く括弧が見当たりません。確認してみてください。');
       }
     }
@@ -351,14 +356,17 @@ var PC = (function () {
     while ((cm = TM.exec(mk))) {
       var pt = cm.index > 0 ? mk.charAt(cm.index - 1) : '';
       if (/[0-9:]/.test(pt) || mk.charAt(cm.index + cm[0].length) === ':') continue;
-      if (+cm[2] >= 60) add('time-invalid', 'warn', '日付・数字', cm.index, cm.index + cm[0].length, '「' + cm[0] + '」は、分が59を超えています。存在しない時刻かもしれません。確認してみてください。');
+      if (+cm[2] >= 60) {
+        var around = mk.slice(Math.max(0, cm.index - 8), cm.index + cm[0].length + 8), timey = /開始|開店|開催|受付|集合|開演|締切|まで|から|〜|~|時|午前|午後|open|start/i.test(around);
+        add('time-invalid', timey ? 'warn' : 'hint', '日付・数字', cm.index, cm.index + cm[0].length, '「' + cm[0] + '」は、分が59を超えています。' + (timey ? '存在しない時刻かもしれません。確認してみてください。' : '時刻でなければ（比率や点数など）、このままでかまいません。時刻のつもりなら確認してみてください。'));
+      }
     }
     var AP12 = /(午前|午後)\s*(\d{1,2})時/g;
     while ((cm = AP12.exec(mk))) if (+cm[2] > 12) add('time-ampm', 'warn', '日付・数字', cm.index, cm.index + cm[0].length, '「' + cm[0] + '」は、' + cm[1] + 'と24時間の表し方が混ざっているようです。確認してみてください。');
     var HM = /(\d{1,2})時\s*(\d{1,2})分/g;
     while ((cm = HM.exec(mk))) if (+cm[2] >= 60) add('time-invalid', 'warn', '日付・数字', cm.index, cm.index + cm[0].length, '「' + cm[0] + '」は、分が59を超えています。存在しない時刻かもしれません。確認してみてください。');
     // 「3つ」と箇条書きの数
-    var CL = /([0-9０-９]{1,2}|[一二三四五六七八九十])\s*(つ|個|選|点|ステップ|コツ|ポイント|項目)(?!目)/g, claims = [];
+    var CL = /([0-9０-９]{1,2}|[一二三四五六七八九十])\s*(つ|選|ステップ|コツ|ポイント|項目)(?!目)/g, claims = [];
     while ((cm = CL.exec(mk))) { var cv = /[0-9０-９]/.test(cm[1]) ? parseInt(toHalf(cm[1]), 10) : '一二三四五六七八九十'.indexOf(cm[1]) + 1; claims.push({ s: cm.index, e: cm.index + cm[0].length, n: cv, t: cm[0] }); }
     if (claims.length === 1 && claims[0].n >= 2 && claims[0].n <= 20) {
       var bl = 0, BU = /^\s*(?:[・●■◆▶▷◎○•\-–—*＊✅☑▪]|[①-⑳]|[0-9０-９]{1,2}[.)．、）])\s*\S/;
@@ -385,7 +393,7 @@ var PC = (function () {
     }
     if (pol.length && pla.length) {
       var minor2 = pol.length < pla.length ? pol : pla;
-      minor2.slice(0, CAP).forEach(function (r) { add('style-mix', 'hint', '文のそろえ', r.s, r.e, '「です・ます」の文（' + pol.length + '）と「だ・である」の文（' + pla.length + '）の両方があります。わざと使い分けているなら、このままで大丈夫です。', 99); });
+      minor2.slice(0, CAP).forEach(function (r) { add('style-mix', 'hint', '文のそろえ', r.s, r.e, '「です・ます」の文（' + pol.length + '）と「だ・である」の文（' + pla.length + '）の両方があります。わざと使い分けているなら、このままでかまいません。', 99); });
     }
 
     /* ---- 文字数（Xの目安） ---- */
@@ -400,7 +408,7 @@ var PC = (function () {
       f.n = k + 1; f.line = f.start >= 0 ? lineOf(f.start) : 0;
       var sn = f.start >= 0 ? text.slice(f.start, Math.min(f.end, f.start + 60)) : ''; if (f.start >= 0 && f.end - f.start > 60) sn += '…'; f.snippet = sn;
     });
-    return { text: text, findings: out, capped: capped, stats: { chars: chars(text), units: un, tags: tags.length, urls: urls.length, warn: out.filter(function (f) { return f.level === 'warn'; }).length, hint: out.filter(function (f) { return f.level === 'hint'; }).length } };
+    return { text: text, truncated: truncated, findings: out, capped: capped, stats: { chars: chars(text), units: un, tags: tags.length, urls: urls.length, warn: out.filter(function (f) { return f.level === 'warn'; }).length, hint: out.filter(function (f) { return f.level === 'hint'; }).length } };
   }
 
   var SAMPLE = '【お知らせ】みなと堂の秋のセール、ｽﾀｰﾄしました！\n10/31(金)まで 全品１０％オフ\n詳しくはこちら https://minato-do.example/sale。\nttps://minato-do.example/cafe もどうぞ\n2月30日は定休日です。\n#セール #秋 #みなと堂 #セール #新商品';
@@ -443,7 +451,8 @@ var PC = (function () {
   }
   function jump(n) {
     var el = document.querySelector('#annot .m[data-ids~="' + n + '"]'); if (!el) return;
-    try { el.scrollIntoView({ block: 'center' }); } catch (e) { el.scrollIntoView(); }
+    var tall = el.getBoundingClientRect().height > window.innerHeight * 0.6;
+    try { el.scrollIntoView({ block: tall ? 'start' : 'center' }); } catch (e) { el.scrollIntoView(); }
     el.classList.add('flash'); setTimeout(function () { el.classList.remove('flash'); }, 1800);
   }
   function renderList(r) {
@@ -460,16 +469,16 @@ var PC = (function () {
       var lv = document.createElement('span'); lv.className = 'lv'; lv.textContent = f.level === 'warn' ? '確認' : 'ヒント'; h.appendChild(lv);
       var ct = document.createElement('span'); ct.className = 'cat'; ct.textContent = f.cat; h.appendChild(ct);
       var wh = document.createElement('span'); wh.className = 'where'; wh.textContent = f.start >= 0 ? f.line + '行目' : '全体'; h.appendChild(wh);
+      if (f.start >= 0 && f.end > f.start) { var bt = document.createElement('button'); bt.type = 'button'; bt.className = 'jump'; bt.textContent = '本文の印へ'; bt.addEventListener('click', function () { jump(f.n); }); h.appendChild(bt); }
       li.appendChild(h);
       var p = document.createElement('p'); p.className = 'fm'; p.textContent = f.msg; li.appendChild(p);
       if (f.snippet) { var sn = document.createElement('p'); sn.className = 'fs'; var cd = document.createElement('code'); cd.textContent = f.snippet; sn.appendChild(document.createTextNode('該当: ')); sn.appendChild(cd); li.appendChild(sn); }
-      if (f.start >= 0 && f.end > f.start) { var bt = document.createElement('button'); bt.type = 'button'; bt.className = 'jump'; bt.textContent = '本文の印へ'; bt.addEventListener('click', function () { jump(f.n); }); li.appendChild(bt); }
       ol.appendChild(li);
     });
   }
   function run() {
     var r = PC.check(txt.value, { now: new Date() });
-    renderCounts(r); renderList(r); annotate(r);
+    renderCounts(r); renderList(r); annotate(r); $('truncNote').hidden = !r.truncated;
   }
   txt.addEventListener('input', function () { if (timer) clearTimeout(timer); timer = setTimeout(run, 120); });
   $('sampleBtn').addEventListener('click', function () { txt.value = PC.SAMPLE; run(); });

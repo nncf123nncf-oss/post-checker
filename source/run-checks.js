@@ -69,6 +69,14 @@ has('1,000円と2000円', 'money-mix'); none('1,000円と2,000円', 'S9'); none(
 // S10 ハッシュタグ・打ち間違い
 none('#a #b #c #d', 'S10 4個'); has('#a #b #c #d #e', 'tag-many'); has('#a #A', 'tag-dup'); has('#タグです', 'tag-sentence'); none('https://x.example/#a #b', 'S10 URL内');
 has('をを', 'typo-dup'); has('ありがとうですです', 'typo-dup'); has('はい、、そうです', 'typo-dup'); has('はい。。そう', 'typo-dup'); none('はい。。。そう', 'S10 。。。は拾わない');
+// レビュー①の反映（回帰）
+['詳しくは https://example.com！', '詳しくは（https://example.com）', '詳しくは https://example.com？', '予約 https://example.com/reserve，どうぞ', 'https://example.com～'].forEach(t => { not(t, 'url-fw', 'R1 URLの直後の全角記号'); not(t, 'url-host', 'R1'); });
+has('https://example.com！', 'url-after', 'R1 ヒントに回る'); has('見て https://x．example/a', 'url-fw'); has('見て https://x.example/ａ', 'url-fw', 'R1 全角英字はURLの中身');
+not('5個入り\n・a\n・b', 'list-count', 'R2 個'); not('2点\n- a\n- b\n- c', 'list-count', 'R2 点'); has('3選\n・a\n・b\n・c\n・d', 'list-count', 'R2 選は見る');
+eq(C('縮尺は1:75です').findings.map(x => x.level), ['hint'], 'R5 時刻でない文脈はヒント'); eq(C('12:75から開始します').findings.map(x => x.level), ['warn'], 'R5 時刻の文脈は確認');
+not('A）りんご\nB）みかん', 'br-close', 'R6 英字の項目記号'); not('ア）りんご\nイ）みかん', 'br-close', 'R6'); has('りんご）です', 'br-close', 'R6 本物の閉じ忘れは出る');
+{ const t = 'ttps://x.example/a' + '😀'.repeat(40); C(t).findings.forEach(x => { tr(!/[\uDC00-\uDFFF]/.test(t.charAt(x.start)) && !/[\uD800-\uDBFF]/.test(t.charAt(x.end - 1)), 'R7 範囲が絵文字を割らない ' + x.rule); }); }
+eq(C('あ'.repeat(10001)).truncated, true, 'R4 10000字超は先頭だけ'); eq(C('あ'.repeat(10000)).truncated, false, 'R4'); eq(C('あ'.repeat(20000)).text.length, 10000, 'R4 切り詰め');
 // 件数の上限・番号
 const big = C('ｱ '.repeat(100) + 'をを'.repeat(100)); tr(big.findings.length <= 60, '件数の上限'); eq(big.findings.map(x => x.n), big.findings.map((_, i) => i + 1), '番号は連番');
 // 位置の整合
