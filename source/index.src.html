@@ -1,0 +1,483 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>投稿前チェック</title>
+<meta name="description" content="投稿する文章を貼ると、URLの形・全角と半角の混在・日付や数字・ハッシュタグ・文字数を決まったルールで見て、気になる場所に印をつけます。文章はこの端末の中だけで処理し、保存もしません。">
+<style>
+  :root {
+    --bg: #f6f4f5; --surface: #ffffff; --ink: #211c1f; --ink2: #463e43; --ink3: #5f565b;
+    --line: #d9d2d6; --line-strong: #7d7379; --accent: #A02A5B; --accent-ink: #ffffff; --accent-soft: #f7e6ed;
+    --warn-bg: #fff0c2; --warn-line: #8a5a00; --warn-ink: #4d3200;
+    --hint-bg: #e3edf6; --hint-line: #335f8a; --hint-ink: #1f3d5a;
+    --danger: #a8231b; --ok: #1b6b34;
+    --font: "Hiragino Sans","Yu Gothic","BIZ UDPGothic","Noto Sans JP",system-ui,sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #161214; --surface: #211b1e; --ink: #f3edf0; --ink2: #cfc5ca; --ink3: #aa9ea5;
+      --line: #3d3338; --line-strong: #86787f; --accent: #F2A6C4; --accent-ink: #3a0f21; --accent-soft: #3a2230;
+      --warn-bg: #4a3a0c; --warn-line: #e0b34a; --warn-ink: #ffe9b0;
+      --hint-bg: #1f3347; --hint-line: #7fb2de; --hint-ink: #cfe5f7;
+      --danger: #ff9a92; --ok: #7fd49a;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font); font-size: 16px; line-height: 1.6; }
+  main { max-width: 1040px; margin: 0 auto; padding: 16px 16px 32px; }
+  h1 { font-size: 22px; line-height: 1.3; margin: 8px 0 8px; }
+  h2 { font-size: 17px; line-height: 1.4; margin: 0 0 8px; }
+  p { margin: 0 0 8px; }
+  a { color: var(--accent); }
+  .lead { color: var(--ink2); }
+  .hint { font-size: 16px; color: var(--ink3); margin: 6px 0 0; }
+  .notes { list-style: none; margin: 12px 0 16px; padding: 12px 14px; background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--accent); border-radius: 6px; font-size: 16px; }
+  .notes li { margin: 0 0 6px; padding-left: 1.5em; text-indent: -1.5em; }
+  .notes li:last-child { margin-bottom: 0; }
+  .notes li::before { content: attr(data-n); display: inline-block; width: 1.5em; text-indent: 0; font-weight: 700; color: var(--accent); }
+  .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 14px; margin: 0 0 14px; }
+  .vh { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+  [hidden] { display: none !important; }
+  :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+  label.lb { display: block; font-weight: 700; margin: 0 0 6px; }
+  textarea { display: block; width: 100%; min-height: 200px; resize: vertical; font: inherit; font-size: 16px; line-height: 1.6; padding: 10px 12px; border-radius: 6px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink); overflow-wrap: anywhere; }
+  button { font: inherit; font-size: 16px; min-height: 44px; padding: 8px 14px; border-radius: 6px; cursor: pointer; background: var(--surface); color: var(--ink); border: 1px solid var(--line-strong); }
+  .btnrow { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  .counts { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 10px 0 0; padding: 0; list-style: none; font-size: 16px; color: var(--ink2); font-variant-numeric: tabular-nums; }
+  .counts li { margin: 0; }
+  .counts b { color: var(--ink); }
+  .counts .over b { color: var(--warn-ink); background: var(--warn-bg); border-bottom: 2px wavy var(--warn-line); text-decoration: none; padding: 0 4px; }
+
+  .headline { font-size: 17px; font-weight: 700; margin: 0 0 10px; overflow-wrap: anywhere; }
+  .headline.zero { font-weight: 600; color: var(--ink2); }
+  .flist { list-style: none; margin: 0; padding: 0; }
+  .f { border: 1px solid var(--line); border-left-width: 5px; border-radius: 6px; padding: 10px 12px; margin: 0 0 10px; background: var(--surface); }
+  .f.warn { border-left-color: var(--warn-line); }
+  .f.hint { border-left-color: var(--hint-line); }
+  .fh { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin: 0 0 4px; font-size: 16px; }
+  .no { display: inline-flex; align-items: center; justify-content: center; min-width: 1.8em; height: 1.8em; padding: 0 4px; border-radius: 999px; background: var(--ink); color: var(--bg); font-weight: 700; font-variant-numeric: tabular-nums; }
+  .lv { font-weight: 700; padding: 0 8px; border-radius: 4px; }
+  .f.warn .lv { background: var(--warn-bg); color: var(--warn-ink); border-bottom: 2px wavy var(--warn-line); }
+  .f.hint .lv { background: var(--hint-bg); color: var(--hint-ink); border-bottom: 2px dotted var(--hint-line); }
+  .cat { font-weight: 600; }
+  .where { color: var(--ink3); }
+  .fm { margin: 0 0 6px; overflow-wrap: anywhere; }
+  .fs { margin: 0 0 6px; color: var(--ink2); overflow-wrap: anywhere; }
+  .fs code { font-family: ui-monospace, "SFMono-Regular", Consolas, "Courier New", monospace; font-size: 16px; background: var(--bg); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .jump { min-height: 44px; }
+
+  .annot { margin: 0; padding: 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; font-size: 16px; line-height: 2; }
+  .m { padding: 0 1px; border-radius: 3px; color: var(--ink); }
+  .m.warn { background: var(--warn-bg); text-decoration: underline wavy var(--warn-line); text-decoration-thickness: 2px; text-underline-offset: 4px; }
+  .m.hint { background: var(--hint-bg); text-decoration: underline dotted var(--hint-line); text-decoration-thickness: 2px; text-underline-offset: 4px; }
+  .m.flash { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .bd { display: inline-block; min-width: 1.5em; margin: 0 2px; padding: 0 3px; border-radius: 999px; font-size: 16px; font-weight: 700; line-height: 1.5; text-align: center; vertical-align: baseline; font-variant-numeric: tabular-nums; }
+  .bd.warn { background: var(--warn-line); color: #fff; }
+  .bd.hint { background: var(--hint-line); color: #fff; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .bd.warn, :root:not([data-theme="light"]) .bd.hint { color: #101010; } }
+  .legend { margin: 8px 0 0; font-size: 16px; color: var(--ink2); }
+
+  details { margin: 0 0 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 4px 14px; }
+  summary { cursor: pointer; font-weight: 700; padding: 10px 0; min-height: 44px; }
+  details ul { margin: 0 0 12px; padding-left: 1.3em; }
+  details li { margin: 0 0 4px; }
+
+  .mw-footer { box-sizing: border-box; width: 100%; max-width: 100%; margin: 24px 0 0; padding: 16px; background: #F7F7F8;
+    border: 1px solid #D8D8DC; border-radius: 6px; color: #3A3A3E; font-family: system-ui, sans-serif; font-size: 12px; line-height: 1.7; }
+  .mw-footer p { margin: 0 0 6px; } .mw-footer p:last-child { margin-bottom: 0; } .mw-footer a { color: #0B5AA6; display: inline-block; padding: 13px 0; }
+
+  .layout { display: block; }
+  @media (min-width: 880px) {
+    main { padding: 24px 16px 40px; }
+    h1 { font-size: 24px; }
+    .layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: "in out" "annot out"; gap: 0 20px; align-items: start; }
+    .a-in { grid-area: in; } .a-annot { grid-area: annot; } .a-out { grid-area: out; position: sticky; top: 16px; max-height: calc(100vh - 32px); overflow: auto; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>投稿前チェック</h1>
+  <p class="lead">投稿する文章を貼ると、URLの形・全角と半角の混在・日付や数字・ハッシュタグ・文字数を、決まったルールで見て、気になる場所に印をつけます。</p>
+
+  <ul class="notes">
+    <li data-n="①">文章はこの端末から外に出ず、保存もしません（通信は閲覧数の計測のみ）。</li>
+    <li data-n="②">見つけられるのは、決まったルールで分かる範囲だけです。誤字・名前の間違い・事実の誤りは見つけられません。「見つからなかった」は「問題がない」という意味ではありません。</li>
+    <li data-n="③">印は「確認してみてください」の合図で、間違いと決めつけるものではありません。直すかどうかは、ご自身で決めてください。</li>
+  </ul>
+
+  <div class="layout">
+    <section class="panel a-in" aria-label="投稿する文章">
+      <label class="lb" for="txt">投稿する文章</label>
+      <textarea id="txt" maxlength="10000" spellcheck="false" autocomplete="off" autocapitalize="off" placeholder="ここに文章を貼り付けます（10000字まで）"></textarea>
+      <ul class="counts" id="counts" aria-live="polite">
+        <li>文字数 <b id="cChars">0</b></li>
+        <li id="cUnitsLi">Xの目安 <b id="cUnits">0</b> / 280 ユニット<span id="cOver"></span></li>
+        <li>ハッシュタグ <b id="cTags">0</b>個</li>
+        <li>URL <b id="cUrls">0</b>件</li>
+      </ul>
+      <div class="btnrow"><button type="button" id="sampleBtn">サンプルで試す</button><button type="button" id="clearBtn">空にする</button></div>
+      <p class="hint">サンプルは、このページで用意した架空の投稿文です。実在の店や人のものではありません。ユニット数は、全角などを2・半角英数字を1として数えた目安で、Xの数え方と完全に同じとは限りません。</p>
+    </section>
+
+    <section class="panel a-out" aria-label="チェック結果">
+      <h2>チェック結果</h2>
+      <p class="headline zero" id="headline" role="status" aria-live="polite">文章を入れると、ここに結果が出ます。</p>
+      <ol class="flist" id="flist"></ol>
+    </section>
+
+    <section class="panel a-annot" id="annotSec" aria-label="印つきの本文" hidden>
+      <h2>印つきの本文</h2>
+      <div class="annot" id="annot" lang="ja"></div>
+      <p class="legend">印の番号は、上の一覧の番号と同じです。波線の下線＝「確認」、点線の下線＝「ヒント」です。</p>
+    </section>
+  </div>
+
+  <details>
+    <summary>見ているもの・見ないもの</summary>
+    <p>見ているもの（決まったルールだけ。AIは使っていません）</p>
+    <ul>
+      <li>文字数（Xの目安の280ユニット。超えていても警告にとどめます）</li>
+      <li>URLの形（http:// の書き間違い・全角・ドメインの形・自分の端末のアドレスなど）</li>
+      <li>全角と半角の混在（英数字・カタカナ・括弧・句読点・記号）、括弧の閉じ忘れ</li>
+      <li>存在しない日付・時刻、日付と曜日の食い違い、「3つ」と箇条書きの数の違い、金額の書き方の混在</li>
+      <li>ハッシュタグの数・重複</li>
+      <li>「です・ます」と「だ・である」の混在、「をを」などの打ち間違い</li>
+    </ul>
+    <p>見ないもの</p>
+    <ul>
+      <li>誤字・脱字・変換ミス・名前の違い・事実が合っているか</li>
+      <li>リンク先のページが開けるか（通信しません）</li>
+      <li>投稿先ごとの決まり（Xの文字数の目安以外）</li>
+      <li>表現が不適切かどうか</li>
+    </ul>
+  </details>
+
+  <footer class="mw-footer">
+    <p>みちAIワークス（MICHI AI WORKS）／代表 田中　泉</p>
+    <p>運営: <a href="https://michi-portfolio.vercel.app/" rel="noopener">みちAIワークス 公式サイト</a>（https://michi-portfolio.vercel.app/ ）／ お問い合わせ: <a href="mailto:nncf123nncf@gmail.com">nncf123nncf@gmail.com</a></p>
+    <p>入力した文章はこのページの中（お使いの端末のブラウザ）だけで処理し、サーバーには送信せず、保存もしません。ページを閉じると消えます。アクセス解析（Cloudflare Web Analytics）で、ページの閲覧状況（閲覧数・参照元・ブラウザの種類など）を計測しています。入力した文章は送信しません。</p>
+    <p>このページは、誤字・名前の間違い・事実の誤りを見つけられません。投稿してよい内容かどうかは、ご自身で確認してください。</p>
+    <p>ログイン・会員登録・パスワードの入力を求めることはありません。</p>
+  </footer>
+</main>
+
+<script id="core">
+/* 検査の部分（画面を使わない）。source/run-checks.js がここだけを取り出して検算する */
+var PC = (function () {
+  'use strict';
+  var LIMIT = 280, MAX_FINDINGS = 60, CAP = 3;
+  var WIDE = '__WIDE__'.split(',').map(function (h) { return parseInt(h, 16); });
+  function cpUnits(cp) {
+    var lo = 0, hi = WIDE.length / 2 - 1;
+    while (lo <= hi) { var mid = (lo + hi) >> 1, a = WIDE[mid * 2], b = WIDE[mid * 2 + 1]; if (cp < a) hi = mid - 1; else if (cp > b) lo = mid + 1; else return 2; }
+    return 1;
+  }
+  /* ユニット数。全角・記号など(東アジア文字幅 W/F/A)は2、他は1 */
+  function units(s) { var n = 0, i, cp; for (i = 0; i < s.length; i++) { cp = s.codePointAt(i); if (cp > 0xFFFF) i++; n += cpUnits(cp); } return n; }
+  function chars(s) { var n = 0, i; for (i = 0; i < s.length; i++) { if (s.codePointAt(i) > 0xFFFF) i++; n++; } return n; }
+  /* 280ユニットを超える最初の文字の位置（なければ -1） */
+  function overflowIndex(s, limit) { var n = 0, i, cp, u; for (i = 0; i < s.length; i++) { cp = s.codePointAt(i); u = cpUnits(cp); if (n + u > limit) return i; n += u; if (cp > 0xFFFF) i++; } return -1; }
+
+  var WD = '日月火水木金土';
+  function isLeap(y) { return (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0; }
+  function dim(m, y) { return [31, y && !isLeap(y) ? 28 : 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][m - 1]; }
+  function wdayOf(y, m, d) { return new Date(Date.UTC(y, m - 1, d)).getUTCDay(); }
+  function toHalf(s) { return s.replace(/[０-９]/g, function (c) { return String.fromCharCode(c.charCodeAt(0) - 0xFEE0); }); }
+  function mask(text, ranges) {
+    var a = text.split(''), i, r, j;
+    for (i = 0; i < ranges.length; i++) { r = ranges[i]; for (j = r.s; j < r.e; j++) a[j] = '\u0001'; }
+    return a.join('');
+  }
+
+  var SHORT = ['bit.ly', 'goo.gl', 'tinyurl.com', 't.co', 'ow.ly', 'is.gd', 'buff.ly', 'forms.gle', 'lin.ee', 'amzn.to'];
+  var JP = '぀-ヿ一-鿿';
+
+  function check(input, opts) {
+    var text = String(input == null ? '' : input).replace(/\r\n?/g, '\n');
+    var now = (opts && opts.now) || new Date(), thisYear = now.getFullYear();
+    var out = [], counts = {}, lastOf = {};
+    function add(rule, level, cat, s, e, msg, cap) {
+      counts[rule] = (counts[rule] || 0) + 1;
+      if (counts[rule] > (cap || CAP)) return;
+      var f = { rule: rule, level: level, cat: cat, start: s, end: e, msg: msg };
+      out.push(f); lastOf[rule] = f;
+    }
+    function lineOf(idx) { var n = 1, i; for (i = 0; i < idx && i < text.length; i++) if (text.charCodeAt(i) === 10) n++; return n; }
+
+    /* ---- URL（先に見つけて、他の検査では中身を見ない） ---- */
+    var URL_RE = /https?:\/\/[A-Za-z0-9\-._~:\/?#\[\]@!$&'()*+,;=%]*/gi, urls = [], m;
+    while ((m = URL_RE.exec(text))) { urls.push({ s: m.index, e: m.index + m[0].length, t: m[0] }); if (!m[0].length) URL_RE.lastIndex++; }
+    var mk = mask(text, urls);
+    var seen = {};
+    urls.forEach(function (u) {
+      var core = u.t.replace(/[.,;:!?)'\]]+$/, ''), trail = u.t.slice(core.length);
+      if (trail === ')' && core.indexOf('(') >= 0) { core = u.t; trail = ''; }
+      var rest = core.replace(/^https?:\/\//i, ''), hostport = rest.split(/[\/?#]/)[0], host = hostport.replace(/^.*@/, '').replace(/:\d*$/, '').toLowerCase();
+      var next = text.charAt(u.e), flagged = false;
+      if (!rest || !hostport) { add('url-short', 'warn', 'URL', u.s, u.e, 'URLが途中で終わっているようです。「https://」のあとにアドレスが続いているか確認してみてください。'); flagged = true; }
+      else if (/[！-～]/.test(next)) { add('url-fw', 'warn', 'URL', u.s, Math.min(text.length, u.e + 1), 'URLの途中に全角の文字（「' + next + '」）が混ざっているようです。半角にそろうか確認してみてください。'); flagged = true; }
+      else if (host === 'localhost' || /^127\./.test(host) || /^192\.168\./.test(host) || /^10\.\d+\.\d+\.\d+$/.test(host) || /\.local$/.test(host)) { add('url-local', 'warn', 'URL', u.s, u.e, 'このアドレスは、自分の端末の中や社内のものに見えます。ほかの人は開けないかもしれません。確認してみてください。'); flagged = true; }
+      else {
+        var ip = /^\d+\.\d+\.\d+\.\d+$/.test(host);
+        var okHost = /^[A-Za-z0-9_\-]+(\.[A-Za-z0-9_\-]+)+$/.test(host) && !/^[.\-]|[.\-]$/.test(host) && !/\.-|-\./.test(host) && (ip || /\.(?:[a-z]{2,}|xn--[a-z0-9\-]+)$/.test(host));
+        if (!okHost) { add('url-host', 'warn', 'URL', u.s, u.e, 'アドレスの形が、いつもと違うようです（「.」の位置や数など）。確認してみてください。'); flagged = true; }
+      }
+      if (!flagged && next && /[　-〿぀-ヿ一-鿿＀-￯]/.test(next)) add('url-after', 'hint', 'URL', u.s, Math.min(text.length, u.e + 1), 'URLのすぐ後ろに文字（「' + next + '」）が続いています。リンクの範囲がずれていないか、投稿前に確かめてみてください。');
+      if (trail) add('url-trail', 'hint', 'URL', u.s + core.length, u.e, 'URLの末尾の「' + trail + '」まで、リンクに含まれていないか確認してみてください。');
+      var h2 = host.replace(/^www\./, '');
+      if (SHORT.indexOf(h2) >= 0) add('url-shorturl', 'hint', 'URL', u.s, u.e, '短縮URLのようです。リンク先が見えないので、短縮しない形でよいか考えてみてください。');
+      var key = core.toLowerCase().replace(/\/$/, '');
+      if (seen[key]) add('url-dup', 'hint', 'URL', u.s, u.e, '同じURLが、もう一度出ています。重ねて載せてよいか確認してみてください。'); else seen[key] = 1;
+    });
+    // 書き出しの形が違うもの（ttps:// など）。URLとして見つかったものは対象外
+    var BAD = /(h?t{1,3}ps{0,2})([:;]?)([\/\\]{0,3})(?=[A-Za-z0-9])/gi;
+    while ((m = BAD.exec(mk))) {
+      var base = m[1].toLowerCase(), prev = m.index > 0 ? mk.charAt(m.index - 1) : '';
+      if (/[A-Za-z0-9]/.test(prev)) continue;
+      if (base.length < 3 || base.indexOf('tp') < 0) continue;
+      if ((base === 'http' || base === 'https') && m[2] === ':' && m[3] === '//') continue;
+      if (!m[2] && !m[3]) continue;
+      var after = mk.slice(m.index + m[0].length).match(/^[^\s　]*/)[0];
+      if (!/^[A-Za-z0-9\-]+(\.[A-Za-z0-9\-]+)+/.test(after)) continue;
+      add('url-scheme', 'warn', 'URL', m.index, Math.min(text.length, m.index + m[0].length + Math.min(after.length, 40)), 'URLの書き出しが「http://」「https://」の形になっていないようです（「' + m[0] + '」）。リンクにならないかもしれないので、確認してみてください。');
+    }
+    var FWU = /ｈｔｔｐｓ?[^\s　]*/gi;
+    while ((m = FWU.exec(mk))) add('url-fwscheme', 'warn', 'URL', m.index, Math.min(text.length, m.index + Math.min(m[0].length, 60)), '全角で書かれたURLのようです。リンクになるのは半角で書いたものなので、確認してみてください。');
+    var FILE = /file:\/\/[^\s　]*/gi;
+    while ((m = FILE.exec(mk))) add('url-local', 'warn', 'URL', m.index, m.index + m[0].length, 'このアドレスは、自分の端末の中のファイルを指しているようです。ほかの人は開けません。確認してみてください。');
+    var WWW = /(^|[^A-Za-z0-9.\/@\-])(www\.[A-Za-z0-9\-]+(?:\.[A-Za-z0-9\-]+)+)/g;
+    while ((m = WWW.exec(mk))) add('url-www', 'hint', 'URL', m.index + m[1].length, m.index + m[0].length, '「http」のないURLです。リンクとして扱われるかは投稿先によって違うので、確かめてみてください。');
+
+    /* ---- 全角・半角 ---- */
+    var hasHalfDigit = /[0-9]/.test(mk);
+    var FW_AL = /[Ａ-Ｚａ-ｚ]+/g;
+    while ((m = FW_AL.exec(mk))) add('fw-alpha', 'warn', '全角・半角', m.index, m.index + m[0].length, '全角の英字（「' + m[0] + '」）があります。半角にそろえるか、このままでよいか確認してみてください。');
+    var FW_DG = /[０-９]+/g;
+    while ((m = FW_DG.exec(mk))) add('fw-digit', hasHalfDigit ? 'warn' : 'hint', '全角・半角', m.index, m.index + m[0].length, hasHalfDigit ? '全角の数字（「' + m[0] + '」）と半角の数字が混ざっています。そろえるか確認してみてください。' : '全角の数字（「' + m[0] + '」）です。半角にそろえるか、このままでよいか確認してみてください。');
+    var HK = /[｡-ﾟ]+/g;
+    while ((m = HK.exec(mk))) add('hw-kana', 'warn', '全角・半角', m.index, m.index + m[0].length, '半角のカタカナ（「' + m[0] + '」）があります。環境によって読みにくくなることがあるので、全角にするか確認してみてください。');
+    // 括弧の対応（半角の ( ) は「1)」などの番号と区別できないため見ない）
+    var PAIRS = { '「': '」', '『': '』', '【': '】', '（': '）' }, CLOSE = { '」': 1, '』': 1, '】': 1, '）': 1 }, stack = [], i;
+    for (i = 0; i < mk.length; i++) {
+      var ch = mk.charAt(i);
+      if (PAIRS[ch]) stack.push({ c: ch, i: i });
+      else if (CLOSE[ch]) {
+        if (stack.length && PAIRS[stack[stack.length - 1].c] === ch) stack.pop();
+        else if (ch === '）' && /[0-9０-９]/.test(mk.charAt(i - 1))) continue;
+        else add('br-close', 'warn', '括弧', i, i + 1, '閉じる括弧「' + ch + '」に対応する開く括弧が見当たりません。確認してみてください。');
+      }
+    }
+    stack.forEach(function (o) { add('br-open', 'warn', '括弧', o.i, o.i + 1, '開いた括弧「' + o.c + '」が閉じられていないようです（「' + PAIRS[o.c] + '」）。確認してみてください。'); });
+    if (/（[^）\n]*）/.test(mk)) {
+      var AP = /\([^()\n]*[぀-ヿ一-鿿][^()\n]*\)/g; m = AP.exec(mk);
+      if (m) add('br-mix', 'hint', '括弧', m.index, m.index + m[0].length, '全角の括弧「（ ）」と、半角の括弧「( )」の両方が使われています。そろえるか確認してみてください。');
+    }
+    if (/[、。]/.test(mk)) {
+      var PM = new RegExp('[' + JP + 'ー][,.]|[，．]', 'g');
+      while ((m = PM.exec(mk))) { var pi = /[,.]$/.test(m[0]) ? m.index + m[0].length - 1 : m.index; add('punct-mix', 'hint', '全角・半角', pi, pi + 1, '「、」「。」のある文章に、「' + mk.charAt(pi) + '」が混ざっています。句読点をそろえるか確認してみてください。'); }
+    }
+    function mixPair(rule, a, b, name) {
+      var ia = [], ib = [], k;
+      for (k = 0; k < mk.length; k++) { var c = mk.charAt(k); if (c === a) ia.push(k); else if (c === b) ib.push(k); }
+      if (ia.length && ib.length) {
+        var minor = ib.length < ia.length ? ib : ia; if (ia.length === ib.length) minor = ia;
+        minor.slice(0, CAP).forEach(function (p) { add(rule, 'hint', '全角・半角', p, p + 1, '半角の「' + a + '」と全角の「' + b + '」が両方使われています（' + name + '）。そろえるか確認してみてください。', 99); });
+      }
+    }
+    mixPair('mix-bang', '!', '！', '感嘆符'); mixPair('mix-q', '?', '？', '疑問符');
+    var fws = [], hws = 0;
+    for (i = 0; i < mk.length; i++) { if (mk.charAt(i) === '　') fws.push(i); else if (mk.charAt(i) === ' ') hws++; }
+    if (fws.length && hws) fws.slice(0, CAP).forEach(function (p) { add('mix-space', 'hint', '全角・半角', p, p + 1, '全角のスペースと半角のスペースの両方が使われています。そろえるか確認してみてください。', 99); });
+
+    /* ---- ハッシュタグ ---- */
+    var TAG = /(^|[\s　])([#＃])([^\s　#＃]+)/g, tags = [], tagSeen = {}, hasHash = false, hasFwHash = false;
+    while ((m = TAG.exec(mk))) {
+      var body = m[3].replace(/[、。，．！？!?,.…」』）)\]】]+$/, '');
+      if (!body || /^[0-9０-９]+$/.test(body)) continue;
+      var st = m.index + m[1].length, en = st + 1 + body.length;
+      tags.push({ s: st, e: en, body: body });
+      if (m[2] === '#') hasHash = true; else hasFwHash = true;
+      var low = body.toLowerCase();
+      if (tagSeen[low]) add('tag-dup', 'warn', 'ハッシュタグ', st, en, '「' + m[2] + body + '」が、2回以上使われています。重ねてよいか確認してみてください。');
+      else tagSeen[low] = 1;
+      if (/(です|ます|でした|ました|ください|ですね|ますね|ですよ|ますよ|だよ|だね)$/.test(body)) add('tag-sentence', 'hint', 'ハッシュタグ', st, en, 'タグ「' + m[2] + body + '」の末尾が、文の終わりのように見えます。タグのあとに空白を入れる必要がないか確認してみてください。');
+    }
+    if (tags.length >= 5) add('tag-many', 'hint', 'ハッシュタグ', tags[4].s, tags[tags.length - 1].e, 'ハッシュタグが' + tags.length + '個あります。多めです。すべて必要か確かめてみてください（投稿先ごとの決まりは確認していません）。');
+    if (hasHash && hasFwHash) { var fwt = tags.filter(function (t) { return text.charAt(t.s) === '＃'; })[0]; if (fwt) add('tag-mix', 'hint', 'ハッシュタグ', fwt.s, fwt.s + 1, '半角の「#」と全角の「＃」の両方が使われています。そろえるか確認してみてください。'); }
+
+    /* ---- 日付・時刻・数字 ---- */
+    var consumed = [];
+    function overlaps(s, e) { return consumed.some(function (r) { return s < r.e && e > r.s; }); }
+    var dates = [], DY = /(?:19|20)\d{2}\s*[\/.\-年]\s*\d{1,2}\s*[\/.\-月]\s*\d{1,2}\s*日?/g, DJ = /\d{1,2}月\s*\d{1,2}日/g, DS = /\d{1,2}\/\d{1,2}/g, cm;
+    function numsOf(str) { return str.match(/\d+/g).map(Number); }
+    while ((cm = DY.exec(mk))) { var ny = numsOf(cm[0]); dates.push({ s: cm.index, e: cm.index + cm[0].length, y: ny[0], m: ny[1], d: ny[2], kind: 'y' }); }
+    while ((cm = DJ.exec(mk))) { var nj = numsOf(cm[0]); dates.push({ s: cm.index, e: cm.index + cm[0].length, y: 0, m: nj[0], d: nj[1], kind: 'j' }); }
+    while ((cm = DS.exec(mk))) {
+      var pc = cm.index > 0 ? mk.charAt(cm.index - 1) : '', nc = mk.charAt(cm.index + cm[0].length), ns = numsOf(cm[0]);
+      if (/[0-9\/]/.test(pc) || /[0-9\/]/.test(nc) || /[A-Za-z]/.test(pc)) continue;
+      if (ns[0] < 1 || ns[0] > 12 || ns[1] < 1 || ns[1] > 31) continue;
+      dates.push({ s: cm.index, e: cm.index + cm[0].length, y: 0, m: ns[0], d: ns[1], kind: 's' });
+    }
+    dates.sort(function (a, b) { return a.s - b.s || b.e - a.e; });
+    var dayWd = {};
+    dates.forEach(function (dt) {
+      if (overlaps(dt.s, dt.e)) return;
+      var tail = mk.slice(dt.e).match(/^\s*(?:[（(]\s*([日月火水木金土])\s*(?:曜日?)?\s*[）)]|([日月火水木金土])曜日?)/), wd = -1, end = dt.e;
+      if (tail) { wd = WD.indexOf(tail[1] || tail[2]); end = dt.e + tail[0].length; }
+      consumed.push({ s: dt.s, e: end });
+      var label = text.slice(dt.s, end);
+      if (dt.m < 1 || dt.m > 12) { add('date-invalid', 'warn', '日付・数字', dt.s, end, '「' + label + '」は、月が1〜12に入っていません。存在しない日付かもしれません。確認してみてください。'); return; }
+      if (dt.d < 1 || dt.d > dim(dt.m, dt.y)) { add('date-invalid', 'warn', '日付・数字', dt.s, end, '「' + label + '」は、存在しない日付かもしれません。月か日を確認してみてください。'); return; }
+      if (wd < 0) return;
+      var wl = WD.charAt(wd);
+      if (dt.y) {
+        var real = wdayOf(dt.y, dt.m, dt.d);
+        if (real !== wd) add('date-wday', 'warn', '日付・数字', dt.s, end, '「' + label + '」の曜日が、' + dt.y + '年のカレンダーと合っていないかもしれません（' + dt.y + '年' + dt.m + '月' + dt.d + '日は' + WD.charAt(real) + '曜日）。日付か曜日を確認してみてください。');
+      } else {
+        var ys = [thisYear, thisYear + 1].filter(function (y) { return dt.d <= dim(dt.m, y); });
+        if (ys.length && !ys.some(function (y) { return wdayOf(y, dt.m, dt.d) === wd; })) {
+          add('date-wday', 'warn', '日付・数字', dt.s, end, '「' + label + '」の曜日が、' + ys.map(function (y) { return y + '年は' + WD.charAt(wdayOf(y, dt.m, dt.d)) + '曜日'; }).join('・') + 'のため、今年・来年のどちらのカレンダーとも合っていないかもしれません。日付か曜日を確認してみてください。');
+        }
+      }
+      var key2 = (dt.y ? dt.y + '-' : '') + dt.m + '/' + dt.d;
+      if (dayWd.hasOwnProperty(key2) && dayWd[key2] !== wd) add('date-wday-diff', 'warn', '日付・数字', dt.s, end, '同じ日付「' + dt.m + '/' + dt.d + '」に、前は「' + WD.charAt(dayWd[key2]) + '」、ここでは「' + wl + '」と、違う曜日がついています。確認してみてください。');
+      else if (!dayWd.hasOwnProperty(key2)) dayWd[key2] = wd;
+    });
+    var TM = /(\d{1,2}):(\d{2})(?!\d)/g;
+    while ((cm = TM.exec(mk))) {
+      var pt = cm.index > 0 ? mk.charAt(cm.index - 1) : '';
+      if (/[0-9:]/.test(pt) || mk.charAt(cm.index + cm[0].length) === ':') continue;
+      if (+cm[2] >= 60) add('time-invalid', 'warn', '日付・数字', cm.index, cm.index + cm[0].length, '「' + cm[0] + '」は、分が59を超えています。存在しない時刻かもしれません。確認してみてください。');
+    }
+    var AP12 = /(午前|午後)\s*(\d{1,2})時/g;
+    while ((cm = AP12.exec(mk))) if (+cm[2] > 12) add('time-ampm', 'warn', '日付・数字', cm.index, cm.index + cm[0].length, '「' + cm[0] + '」は、' + cm[1] + 'と24時間の表し方が混ざっているようです。確認してみてください。');
+    var HM = /(\d{1,2})時\s*(\d{1,2})分/g;
+    while ((cm = HM.exec(mk))) if (+cm[2] >= 60) add('time-invalid', 'warn', '日付・数字', cm.index, cm.index + cm[0].length, '「' + cm[0] + '」は、分が59を超えています。存在しない時刻かもしれません。確認してみてください。');
+    // 「3つ」と箇条書きの数
+    var CL = /([0-9０-９]{1,2}|[一二三四五六七八九十])\s*(つ|個|選|点|ステップ|コツ|ポイント|項目)(?!目)/g, claims = [];
+    while ((cm = CL.exec(mk))) { var cv = /[0-9０-９]/.test(cm[1]) ? parseInt(toHalf(cm[1]), 10) : '一二三四五六七八九十'.indexOf(cm[1]) + 1; claims.push({ s: cm.index, e: cm.index + cm[0].length, n: cv, t: cm[0] }); }
+    if (claims.length === 1 && claims[0].n >= 2 && claims[0].n <= 20) {
+      var bl = 0, BU = /^\s*(?:[・●■◆▶▷◎○•\-–—*＊✅☑▪]|[①-⑳]|[0-9０-９]{1,2}[.)．、）])\s*\S/;
+      mk.split('\n').forEach(function (ln) { if (BU.test(ln)) bl++; });
+      if (bl >= 2 && bl !== claims[0].n) add('list-count', 'warn', '日付・数字', claims[0].s, claims[0].e, '「' + claims[0].t + '」と書いてありますが、箇条書きは' + bl + '行あります。数が合っているか確認してみてください。');
+    }
+    // 金額の書き方
+    var YEN = /(?:[¥￥]\s*(\d[\d,]*))|(?:(\d[\d,]*)\s*円)/g, withC = [], noC = [];
+    while ((cm = YEN.exec(mk))) { var dg = cm[1] || cm[2], isC = dg.indexOf(',') >= 0, plain = dg.replace(/,/g, ''); if (isC) withC.push({ s: cm.index, e: cm.index + cm[0].length }); else if (plain.length >= 4) noC.push({ s: cm.index, e: cm.index + cm[0].length }); }
+    if (withC.length && noC.length) { var mn = noC.length <= withC.length ? noC : withC; mn.slice(0, CAP).forEach(function (r) { add('money-mix', 'hint', '日付・数字', r.s, r.e, '金額の書き方が、「1,000円」の形と「1000円」の形で混ざっています。そろえるか確認してみてください。', 99); }); }
+
+    /* ---- 打ち間違い・文のそろえ ---- */
+    var TYPO = /をを|ですです|、{2,}|。。+/g;
+    while ((cm = TYPO.exec(mk))) { if (/^。。+$/.test(cm[0]) && cm[0].length >= 3) continue; add('typo-dup', 'warn', '打ち間違い', cm.index, cm.index + cm[0].length, '「' + cm[0] + '」と重なっています。打ち間違いかもしれません。確認してみてください。'); }
+    // 文体。URL・ハッシュタグは見ない
+    var tagMask = mask(mk, tags.map(function (t) { return { s: t.s, e: t.e }; })), pol = [], pla = [];
+    var SEN = /[^。！？!?\n]+/g, POL = /(です|ます|でした|ました|ません|ください|ましょう|でしょう)(ね|よ|か|ねえ|なあ|な|わ)?$/, PLA = /(だった|である|ではない|じゃない|だ|ない|した|する|いる|ある|なる|れる|たい|った|いた|んだ|のだ|だよ|だね|かも)$/;
+    while ((cm = SEN.exec(tagMask))) {
+      var raw = cm[0], core2 = raw.replace(/[^぀-ヿA-Za-z0-9一-鿿]+$/, '');
+      if (core2.indexOf('\u0001') >= 0 && core2.replace(/\u0001/g, '').length < 4) continue;
+      if (core2.replace(/[^぀-ヿ一-鿿]/g, '').length < 4) continue;
+      var span = { s: cm.index + (raw.length - raw.replace(/^[\s　]+/, '').length), e: cm.index + core2.length };
+      if (POL.test(core2)) pol.push(span); else if (PLA.test(core2)) pla.push(span);
+    }
+    if (pol.length && pla.length) {
+      var minor2 = pol.length < pla.length ? pol : pla;
+      minor2.slice(0, CAP).forEach(function (r) { add('style-mix', 'hint', '文のそろえ', r.s, r.e, '「です・ます」の文（' + pol.length + '）と「だ・である」の文（' + pla.length + '）の両方があります。わざと使い分けているなら、このままで大丈夫です。', 99); });
+    }
+
+    /* ---- 文字数（Xの目安） ---- */
+    var un = units(text), ov = overflowIndex(text, LIMIT);
+    if (ov >= 0) add('len-over', 'warn', '文字数', ov, text.length, 'Xの目安（' + LIMIT + 'ユニット）を、' + (un - LIMIT) + 'ユニット超えています（いまは' + un + 'ユニット）。印は、目安を超えた部分です。超えていても投稿できることはありますが、投稿先やアカウントで変わるため、投稿画面で確かめてください。この道具の数え方が、Xと完全に同じとは限りません。', 99);
+
+    // 超過分の注記・並べ替え・番号
+    Object.keys(lastOf).forEach(function (r) { if (counts[r] > CAP && r !== 'len-over' && !/^(mix-|money-|style-)/.test(r)) lastOf[r].msg += '（同じ種類が、ほかに' + (counts[r] - CAP) + 'か所あります。印は最初の' + CAP + 'か所だけです）'; });
+    out.sort(function (a, b) { var as = a.start < 0 ? 1e9 : a.start, bs = b.start < 0 ? 1e9 : b.start; return as - bs || (a.level === 'warn' ? 0 : 1) - (b.level === 'warn' ? 0 : 1); });
+    var capped = out.length > MAX_FINDINGS; if (capped) out = out.slice(0, MAX_FINDINGS);
+    out.forEach(function (f, k) {
+      f.n = k + 1; f.line = f.start >= 0 ? lineOf(f.start) : 0;
+      var sn = f.start >= 0 ? text.slice(f.start, Math.min(f.end, f.start + 60)) : ''; if (f.start >= 0 && f.end - f.start > 60) sn += '…'; f.snippet = sn;
+    });
+    return { text: text, findings: out, capped: capped, stats: { chars: chars(text), units: un, tags: tags.length, urls: urls.length, warn: out.filter(function (f) { return f.level === 'warn'; }).length, hint: out.filter(function (f) { return f.level === 'hint'; }).length } };
+  }
+
+  var SAMPLE = '【お知らせ】みなと堂の秋のセール、ｽﾀｰﾄしました！\n10/31(金)まで 全品１０％オフ\n詳しくはこちら https://minato-do.example/sale。\nttps://minato-do.example/cafe もどうぞ\n2月30日は定休日です。\n#セール #秋 #みなと堂 #セール #新商品';
+  return { LIMIT: LIMIT, units: units, chars: chars, overflowIndex: overflowIndex, check: check, SAMPLE: SAMPLE };
+})();
+</script>
+
+<script id="ui">
+(function () {
+  'use strict';
+  function $(id) { return document.getElementById(id); }
+  var txt = $('txt'), timer = null;
+
+  function renderCounts(r) {
+    $('cChars').textContent = r.stats.chars; $('cUnits').textContent = r.stats.units; $('cTags').textContent = r.stats.tags; $('cUrls').textContent = r.stats.urls;
+    $('cOver').textContent = r.stats.units > PC.LIMIT ? '（目安を超えています）' : '';
+    $('cUnitsLi').className = r.stats.units > PC.LIMIT ? 'over' : '';
+  }
+  function annotate(r) {
+    var box = $('annot'), sec = $('annotSec'), text = r.text, ranges = r.findings.filter(function (f) { return f.start >= 0 && f.end > f.start; });
+    while (box.firstChild) box.removeChild(box.firstChild);
+    if (!text || !ranges.length) { sec.hidden = true; return; }
+    sec.hidden = false;
+    var cuts = {}, i, k; cuts[0] = 1; cuts[text.length] = 1;
+    ranges.forEach(function (f) { cuts[f.start] = 1; cuts[f.end] = 1; });
+    var pts = Object.keys(cuts).map(Number).sort(function (a, b) { return a - b; });
+    for (i = 0; i < pts.length - 1; i++) {
+      var a = pts[i], b = pts[i + 1], seg = text.slice(a, b);
+      var cov = ranges.filter(function (f) { return f.start <= a && f.end >= b; });
+      if (!cov.length) box.appendChild(document.createTextNode(seg));
+      else {
+        var sp = document.createElement('span'); sp.className = 'm ' + (cov.some(function (f) { return f.level === 'warn'; }) ? 'warn' : 'hint');
+        sp.setAttribute('data-ids', cov.map(function (f) { return f.n; }).join(' ')); sp.textContent = seg; box.appendChild(sp);
+      }
+      for (k = 0; k < ranges.length; k++) if (ranges[k].end === b) {
+        var bd = document.createElement('sup'); bd.className = 'bd ' + ranges[k].level; bd.textContent = ranges[k].n;
+        bd.setAttribute('aria-label', '印' + ranges[k].n + '（' + (ranges[k].level === 'warn' ? '確認' : 'ヒント') + '）'); box.appendChild(bd);
+      }
+    }
+  }
+  function jump(n) {
+    var el = document.querySelector('#annot .m[data-ids~="' + n + '"]'); if (!el) return;
+    try { el.scrollIntoView({ block: 'center' }); } catch (e) { el.scrollIntoView(); }
+    el.classList.add('flash'); setTimeout(function () { el.classList.remove('flash'); }, 1800);
+  }
+  function renderList(r) {
+    var ol = $('flist'), hd = $('headline'), n = r.findings.length;
+    while (ol.firstChild) ol.removeChild(ol.firstChild);
+    if (!r.text.trim()) { hd.className = 'headline zero'; hd.textContent = '文章を入れると、ここに結果が出ます。'; return; }
+    if (!n) { hd.className = 'headline zero'; hd.textContent = 'このページのルールでは、気になる点は見つかりませんでした。誤字・名前の間違い・事実の誤りは見ていません。'; return; }
+    hd.className = 'headline';
+    hd.textContent = '確認したい点が' + n + '件あります（確認' + r.stats.warn + '件・ヒント' + r.stats.hint + '件）' + (r.capped ? '。多いため、先頭の' + n + '件だけ出しています' : '');
+    r.findings.forEach(function (f) {
+      var li = document.createElement('li'); li.className = 'f ' + f.level;
+      var h = document.createElement('div'); h.className = 'fh';
+      var no = document.createElement('span'); no.className = 'no'; no.textContent = f.n; h.appendChild(no);
+      var lv = document.createElement('span'); lv.className = 'lv'; lv.textContent = f.level === 'warn' ? '確認' : 'ヒント'; h.appendChild(lv);
+      var ct = document.createElement('span'); ct.className = 'cat'; ct.textContent = f.cat; h.appendChild(ct);
+      var wh = document.createElement('span'); wh.className = 'where'; wh.textContent = f.start >= 0 ? f.line + '行目' : '全体'; h.appendChild(wh);
+      li.appendChild(h);
+      var p = document.createElement('p'); p.className = 'fm'; p.textContent = f.msg; li.appendChild(p);
+      if (f.snippet) { var sn = document.createElement('p'); sn.className = 'fs'; var cd = document.createElement('code'); cd.textContent = f.snippet; sn.appendChild(document.createTextNode('該当: ')); sn.appendChild(cd); li.appendChild(sn); }
+      if (f.start >= 0 && f.end > f.start) { var bt = document.createElement('button'); bt.type = 'button'; bt.className = 'jump'; bt.textContent = '本文の印へ'; bt.addEventListener('click', function () { jump(f.n); }); li.appendChild(bt); }
+      ol.appendChild(li);
+    });
+  }
+  function run() {
+    var r = PC.check(txt.value, { now: new Date() });
+    renderCounts(r); renderList(r); annotate(r);
+  }
+  txt.addEventListener('input', function () { if (timer) clearTimeout(timer); timer = setTimeout(run, 120); });
+  $('sampleBtn').addEventListener('click', function () { txt.value = PC.SAMPLE; run(); });
+  $('clearBtn').addEventListener('click', function () { txt.value = ''; run(); txt.focus(); });
+  run();
+})();
+</script>
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js"
+        data-cf-beacon='{"token": "b4c9f7e78daf4edb84ef52b88633f649"}'></script>
+</body>
+</html>
